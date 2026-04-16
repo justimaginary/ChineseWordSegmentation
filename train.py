@@ -29,8 +29,8 @@ def main():
 
     # 验证集保持不变，依然使用第 4 个文件（pku）的前 500 句作为模拟考
     valDataset = CRFDataset(trainFiles[3], vocab)
-    valDataset.sentences = valDataset.sentences[:500]
-    valDataset.tags = valDataset.tags[:500]
+    valDataset.sentences = valDataset.sentences[:3500]
+    valDataset.tags = valDataset.tags[:3500]
     valLoader = DataLoader(valDataset, batch_size=128, collate_fn=collateFn, num_workers=4,
                            pin_memory=True)
 
@@ -42,13 +42,13 @@ def main():
 
     model = model.to(device)
     #  3. 准备优化器
-    optimizer = optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-5)
+    optimizer = optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-4)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=2)
 
     #  4. 开始训练
-    epochs = 50
+    epochs = 100
 
-    patience = 3  # 连续 3 次没进步就停
+    patience = 10  # 连续 3 次没进步就停
     bestLoss = float('inf')  # 记录历史上最好的成绩
     noImprovementCount = 0  # 计数器：记录连续几次没进步了
     global_step = 0

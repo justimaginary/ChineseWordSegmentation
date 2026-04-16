@@ -50,7 +50,7 @@ def main():
     # 3.这里以 PKU 的测试集为例，也可以换成 msr 或 cityu
     testFileName = "pku_test.utf8"
 
-    testFilePath = os.path.join("./testing", testFileName)
+    testFilePath = os.path.join("./data/test", testFileName)
     outputFilePath = os.path.join(outputDir, testFileName + ".result")
 
     # 4. 开始test

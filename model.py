@@ -5,6 +5,9 @@ startTag = "<START>"
 stopTag = "<STOP>"
 
 
+
+
+
 class BiLstmCrf(nn.Module):
     def __init__(self, vocabSize, tagToIx, embeddingDim, hiddenDim):
         super(BiLstmCrf, self).__init__()
@@ -23,6 +26,13 @@ class BiLstmCrf(nn.Module):
         # bidirectional=True 开启双向阅读
         self.lstm = nn.LSTM(embeddingDim, hiddenDim // 2,
                             num_layers=3, bidirectional=True, batch_first=True)
+
+        # 注意力层
+        # self.attention = SelfAttention(hiddenDim)
+
+        self.attention = nn.MultiheadAttention(embed_dim=hiddenDim, num_heads=8, batch_first=True, dropout=0.1)
+        # 一个可学习的缩放参数，初始设小一点（比如 0.1）
+        self.gamma = nn.Parameter(torch.full((1,), 0.1))
 
         # 将 LSTM 的输出映射到标签空间
         # 线性映射层：把 LSTM 复杂的输出，压缩成标签的数量（比如 6 个标签就有 6 个分数）
@@ -45,8 +55,16 @@ class BiLstmCrf(nn.Module):
 
         embeds = self.wordEmbeds(sentence)
         lstmOut, _ = self.lstm(embeds)
-        lstmOut = self.dropout(lstmOut)
-        lstmFeats = self.hidden2Tag(lstmOut)
+
+        # contextual_out = self.attention(lstmOut)  # [batch_size, seq_len, hiddenDim]
+
+        contextual_out, attn_weights = self.attention(lstmOut, lstmOut, lstmOut)
+
+        fused_out = lstmOut + self.gamma * contextual_out
+
+        # 3. 映射到标签空间
+        fused_out = self.dropout(fused_out)
+        lstmFeats = self.hidden2Tag(fused_out)
         return lstmFeats
 
     '''
@@ -208,7 +226,7 @@ class BiLstmCrf(nn.Module):
         backpointers = []  # 用来记录每一步的所有内容
 
         # 初始化记分牌 (和 forwardAlg 一模一样)
-        initVvars = torch.full((1, self.tagsetSize), -1000000.,device=feats.device)
+        initVvars = torch.full((1, self.tagsetSize), -1000000., device=feats.device)
         initVvars[0][self.tagToIx[startTag]] = 0
 
         # forwardVar 现在代表：走到上一步时，各个标签的最高得分
@@ -227,7 +245,6 @@ class BiLstmCrf(nn.Module):
                 # 2. 找出那个最大分数对应的索引 (bestTagId)，也就是它是从哪个标签跳过来的！
                 bestScore = torch.max(nextTagVar, dim=1)[0]
                 bestTagId = torch.max(nextTagVar, dim=1)[1]
-
 
                 # 记录：把最好的前一步标签存进本子
                 bptrsT.append(bestTagId.item())
@@ -255,7 +272,7 @@ class BiLstmCrf(nn.Module):
 
         # Python 的 reversed() 可以把一个列表倒过来遍历
         # backpointers 里存的是每一步的脚印列表 bptrsT
-        for bptrsT in reversed(backpointers):】
+        for bptrsT in reversed(backpointers):
             # bptrsT 里面存着从各个标签跳过来的前一步是谁。
             # 现在就站在 bestFinalTagId 上。从 bptrsT 里，
             # 查出到底是谁跳到了 bestFinalTagId 上

@@ -11,9 +11,9 @@ def load_model_and_vocab():
                   "./data/train/msr_training.utf8", "./data/train/pku_training.utf8"]
     vocab.build_vocab(trainFiles)
 
-    print("正在唤醒模型大脑...")
-    embeddingDim = 128
-    hiddenDim = 256
+    print("正在加载模型...")
+    embeddingDim = 256
+    hiddenDim = 512
     model = BiLstmCrf(vocab.vocabSize, vocab.tag2id, embeddingDim, hiddenDim)
 
     # 填入训练好的模型路径

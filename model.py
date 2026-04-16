@@ -3,7 +3,30 @@ import torch.nn as nn
 
 startTag = "<START>"
 stopTag = "<STOP>"
+class SelfAttention(nn.Module):
+    def __init__(self, hidden_dim):
+        super(SelfAttention, self).__init__()
+        # 建立一个线性层，用来计算当前字和全句的相关度
+        self.projection = nn.Sequential(
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.Tanh(),
+            nn.Linear(hidden_dim, 1)
+        )
 
+    def forward(self, encoder_outputs):
+        # encoder_outputs 形状: [batch_size, seq_len, hidden_dim]
+        
+        # 1. 计算每个字对全句的重要性得分
+        energy = self.projection(encoder_outputs) # [batch_size, seq_len, 1]
+        
+        # 2. 算出权重分布 (Softmax)
+        weights = torch.softmax(energy, dim=1) # [batch_size, seq_len, 1]
+        
+        # 3. 将权重应用到原特征上，得到上下文向量
+        # 利用广播机制进行加权求和
+        context = encoder_outputs * weights # [batch_size, seq_len, hidden_dim]
+        
+        return context
 
 class BiLstmCrf(nn.Module):
     def __init__(self, vocabSize, tagToIx, embeddingDim, hiddenDim):
@@ -23,7 +46,9 @@ class BiLstmCrf(nn.Module):
         # bidirectional=True 开启双向阅读
         self.lstm = nn.LSTM(embeddingDim, hiddenDim // 2,
                             num_layers=3, bidirectional=True, batch_first=True)
-
+                            
+        # 注意力层
+        self.attention = SelfAttention(hiddenDim)
         # 将 LSTM 的输出映射到标签空间
         # 线性映射层：把 LSTM 复杂的输出，压缩成标签的数量（比如 6 个标签就有 6 个分数）
         self.hidden2Tag = nn.Linear(hiddenDim, self.tagsetSize)
@@ -45,8 +70,14 @@ class BiLstmCrf(nn.Module):
 
         embeds = self.wordEmbeds(sentence)
         lstmOut, _ = self.lstm(embeds)
-        lstmOut = self.dropout(lstmOut)
-        lstmFeats = self.hidden2Tag(lstmOut)
+        
+        contextual_out = self.attention(lstmOut) # [batch_size, seq_len, hiddenDim]
+        
+        fused_out = lstmOut + contextual_out
+        
+        # 3. 映射到标签空间
+        fused_out = self.dropout(fused_out)
+        lstmFeats = self.hidden2Tag(fused_out)
         return lstmFeats
 
     '''
@@ -255,7 +286,7 @@ class BiLstmCrf(nn.Module):
 
         # Python 的 reversed() 可以把一个列表倒过来遍历
         # backpointers 里存的是每一步的脚印列表 bptrsT
-        for bptrsT in reversed(backpointers):】
+        for bptrsT in reversed(backpointers):
             # bptrsT 里面存着从各个标签跳过来的前一步是谁。
             # 现在就站在 bestFinalTagId 上。从 bptrsT 里，
             # 查出到底是谁跳到了 bestFinalTagId 上

@@ -2,6 +2,7 @@ import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
+from torch.amp import autocast, GradScaler
 
 from dataset import Vocab, CRFDataset, collateFn
 from model import BiLstmCrf
@@ -54,6 +55,9 @@ def main():
     global_step = 0
 
     print("开始训练！")
+    
+    scaler = torch.amp.GradScaler('cuda', enabled=(device.type == 'cuda'))
+    
     for epoch in range(epochs):
         model.train()
         totalLoss = 0.0
@@ -70,13 +74,18 @@ def main():
 
             # 2. 让模型做题，计算 Loss
             # 为了稳定，我们通常取个平均值：
-            loss = model(single_sentence, single_tags, mask)
+            # loss = model(single_sentence, single_tags, mask)
+            with torch.amp.autocast('cuda', enabled=(device.type == 'cuda')):
+                loss = model(single_sentence, single_tags, mask)
 
             # 3. 自动反向求导（找错误原因）
-            loss.backward()
+            # loss.backward()
+            scaler.scale(loss).backward()
 
             # 4. 优化器更新参数
-            optimizer.step()
+            # optimizer.step()
+            scaler.step(optimizer)
+            scaler.update()
 
             # 累加 loss 用于打印查看训练进度
             totalLoss += loss.item()

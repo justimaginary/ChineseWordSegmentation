@@ -22,7 +22,7 @@ def main():
     print(f"词表大小: {vocab.vocabSize}")
 
     print("正在加载数据集...")
-    trainDataset = CRFDataset(trainFiles[:3], vocab)
+    trainDataset = CRFDataset(trainFiles[3], vocab)
 
     # DataLoader 是个打包机，每次从 dataset 里抓 batchSize 句话，并用 collateFn 对齐
     trainLoader = DataLoader(trainDataset, batch_size=128, shuffle=True, collate_fn=collateFn, num_workers=4,
@@ -49,7 +49,7 @@ def main():
     #  4. 开始训练
     epochs = 100
 
-    patience = 10  # 连续 3 次没进步就停
+    patience = 6  # 连续 3 次没进步就停
     bestLoss = float('inf')  # 记录历史上最好的成绩
     noImprovementCount = 0  # 计数器：记录连续几次没进步了
     global_step = 0
@@ -64,6 +64,11 @@ def main():
 
         # 从打包机里一批一批地拿数据
         for batchIdx, (sentences, tags) in enumerate(trainLoader):
+
+            MAX_LEN = 256
+            if sentences.size(1) > MAX_LEN:
+                sentences = sentences[:, :MAX_LEN]
+                tags = tags[:, :MAX_LEN]
 
             # 1. 清空优化器的梯度
             single_sentence = sentences.to(device)
